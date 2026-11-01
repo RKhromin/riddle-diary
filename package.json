@@ -1,0 +1,15 @@
+{
+  "name": "riddle-diary",
+  "version": "1.0.0",
+  "description": "Общая доска для рисования в стиле дневника с исчезающими чернилами",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
