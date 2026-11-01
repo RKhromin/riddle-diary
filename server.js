@@ -116,7 +116,7 @@ wss.on("connection", (ws, req) => {
 
   let room = rooms.get(name);
   if (!room) {
-    room = { peers: new Map(), adminKey: "", cfg: { life: 8, title: "" }, bg: null, lastBg: 0, timer: null };
+    room = { peers: new Map(), adminKey: "", cfg: { life: 8, title: "", fx: 0 }, bg: null, lastBg: 0, timer: null };
     rooms.set(name, room);
   }
   clearTimeout(room.timer);
@@ -165,8 +165,9 @@ wss.on("connection", (ws, req) => {
     } else if (m.t === "cfg" && me.admin) {
       const life = clamp(Number(m.life) || 8, 2, 30);
       const title = typeof m.title === "string" ? m.title.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 60) : "";
-      room.cfg = { life, title };
-      broadcast(room, { t: "cfg", life, title }, me);
+      const fx = clamp(Math.round(Number(m.fx)) || 0, 0, 9); // вариант исчезновения чернил
+      room.cfg = { life, title, fx };
+      broadcast(room, { t: "cfg", life, title, fx }, me);
     } else if (m.t === "ping") {
       send(ws, { t: "pong" });
     }

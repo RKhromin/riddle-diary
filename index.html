@@ -44,6 +44,12 @@ color:rgba(32,20,36,.8);pointer-events:none;opacity:0;animation:inkhint 8s ease-
 #ttl{width:200px;background:transparent;border:0;border-bottom:1px solid var(--ui-dim);color:var(--ui);font:inherit;padding:2px 2px;-webkit-user-select:text;user-select:text}
 button{background:transparent;border:1px solid var(--ui-dim);color:var(--ui);border-radius:3px;padding:3px 10px;font:inherit;cursor:pointer}
 button:hover{border-color:var(--ui)}
+#dbg{position:fixed;left:6px;top:6px;margin:0;padding:6px 8px;background:rgba(0,0,0,.72);color:#9f9;font:11px/1.35 monospace;z-index:9;pointer-events:none;max-width:92vw;white-space:pre-wrap}
+#demolabs{position:absolute;inset:0;pointer-events:none}
+#demolabs div{position:absolute;left:5%;font:italic 15px "Cormorant Garamond",Georgia,serif;color:rgba(60,38,18,.6)}
+.lightink #demolabs div{color:rgba(240,232,220,.75)}
+select{background:transparent;border:1px solid var(--ui-dim);color:var(--ui);border-radius:3px;padding:3px 6px;font:inherit}
+select option{background:#1a1411;color:#d8c8a8}
 </style>
 </head>
 <body>
@@ -55,7 +61,7 @@ button:hover{border-color:var(--ui)}
 <div id="bar">
   <span id="status">Страница пуста…</span>
   <label class="life">Чернила впитаются через <b id="lv">8</b> с <input id="life" type="range" min="2" max="30" value="8"></label>
-  <input id="ttl" maxlength="60" placeholder="Заголовок страницы…" autocomplete="off" aria-label="Заголовок"><button id="bgbtn">Фон…</button><button id="bgclr">Бумага</button><input type="file" id="bgfile" accept="image/*" hidden><button id="copy">Скопировать ссылку</button>
+  <input id="ttl" maxlength="60" placeholder="Заголовок страницы…" autocomplete="off" aria-label="Заголовок"><button id="bgbtn">Фон…</button><button id="bgclr">Бумага</button><label class="life">Исчезновение <select id="fxsel"></select></label><button id="fxdemo">Сравнить все</button><input type="file" id="bgfile" accept="image/*" hidden><button id="copy">Скопировать ссылку</button>
 </div>
 <script>
 (function(){
@@ -65,7 +71,7 @@ var $=function(id){return document.getElementById(id)};
 var page=$("page"),cv=$("cv"),ctx=cv.getContext("2d"),bar=$("bar");
 var oc=document.createElement("canvas"),octx=oc.getContext("2d");
 var W=300,H=400,dpr=1,idle=false,isAdmin=false,adminPeer=null;
-var strokes=[],remote=new Map(),cfg={life:8,title:""},maskPats=[];
+var strokes=[],remote=new Map(),cfg={life:8,title:"",fx:0},maskPats=[];
 var clamp=function(v,a,b){return Math.max(a,Math.min(b,v))};
 var wf=function(c){return .6+c*.095}; /* c = 0..12 */
 var ease=function(f){return f*f*(3-2*f)};
@@ -113,6 +119,8 @@ function pat(st){
 }
 
 /* ---------- ink rendering ---------- */
+var NIB=-0.72; /* broad nib: its edge rises to the right (~41 deg), like an italic fountain pen */
+var FXN=["Впитывание","Растекание","Испарение","Пепел","Выцветание"];
 function shape(b){
   if(b.sh)return b.sh;
   var R=rnd(Math.round(b.x*1e4)*7919+Math.round(b.y*1e4)),sh=[[0,0,1]];
@@ -126,7 +134,52 @@ function drawBlot(g,b,col,sp,a){
   for(k=0;k<sh.length;k++){var x=cx+sh[k][0]*r,y=cy+sh[k][1]*r,rr=sh[k][2]*r;g.moveTo(x+rr,y);g.arc(x,y,rr,0,6.283)}
   g.fill();
 }
-function qpath(g,P,i,j){ /* smooth curve: each point is a control point, pieces meet at midpoints */
+/* The nib is a thin flat blade. Its stroke is everything the blade sweeps over, so the line is thick when you
+   move across the blade and a hairline when you move along it. Polygons are cached per stroke (Path2D). */
+function cross(a,b,c){return(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0])}
+function hull(pts){
+  pts.sort(function(p,q){return p[0]-q[0]||p[1]-q[1]});
+  var lo=[],hi=[],i,p;
+  for(i=0;i<pts.length;i++){p=pts[i];while(lo.length>=2&&cross(lo[lo.length-2],lo[lo.length-1],p)<=0)lo.pop();lo.push(p)}
+  for(i=pts.length-1;i>=0;i--){p=pts[i];while(hi.length>=2&&cross(hi[hi.length-2],hi[hi.length-1],p)<=0)hi.pop();hi.push(p)}
+  hi.pop();lo.pop();return lo.concat(hi);
+}
+function nibL(s,c){return s.w*W*(.6+c*.095)*2.3}
+function rect4(x,y,L){
+  var ux=Math.cos(NIB),uy=Math.sin(NIB),vx=-uy,vy=ux,hl=L/2,ht=Math.max(.5,L*.075);
+  return[[x-ux*hl-vx*ht,y-uy*hl-vy*ht],[x+ux*hl-vx*ht,y+uy*hl-vy*ht],[x+ux*hl+vx*ht,y+uy*hl+vy*ht],[x-ux*hl+vx*ht,y-uy*hl+vy*ht]];
+}
+function addPoly(path,pts){path.moveTo(pts[0][0],pts[0][1]);for(var i=1;i<pts.length;i++)path.lineTo(pts[i][0],pts[i][1]);path.closePath()}
+function stamp(path,a,b){addPoly(path,b?hull(rect4(a[0],a[1],a[2]).concat(rect4(b[0],b[1],b[2]))):rect4(a[0],a[1],a[2]))}
+function addPiece(path,s,P,k,n,last){ /* quadratic piece owned by point k, sampled every ~2px */
+  var px=P[k][0]*W,py=P[k][1]*H,sx,sy,ex,ey,cs,ce;
+  if(k===0){sx=px;sy=py;cs=P[0][3]}else{sx=(P[k-1][0]+P[k][0])*.5*W;sy=(P[k-1][1]+P[k][1])*.5*H;cs=(P[k-1][3]+P[k][3])*.5}
+  if(k===n-1){ex=px;ey=py;ce=P[k][3]}else{ex=(P[k][0]+P[k+1][0])*.5*W;ey=(P[k][1]+P[k+1][1])*.5*H;ce=(P[k][3]+P[k+1][3])*.5}
+  var len=Math.hypot(px-sx,py-sy)+Math.hypot(ex-px,ey-py),m=clamp(Math.ceil(len/2),1,40),i=last?1:0,u,q;
+  for(;i<=m;i++){
+    u=i/m;
+    q=[(1-u)*(1-u)*sx+2*u*(1-u)*px+u*u*ex,(1-u)*(1-u)*sy+2*u*(1-u)*py+u*u*ey,nibL(s,cs+(ce-cs)*u)];
+    if(last)stamp(path,last,q);else stamp(path,q,null);
+    last=q;
+  }
+  return last;
+}
+function nibStroke(s){
+  var nb=s.nb,P=s.pts,n=P.length;
+  if(!nb||nb.W!==W||nb.H!==H)nb=s.nb={W:W,H:H,path:new Path2D(),tail:null,tn:-1,k:0,last:null};
+  while(nb.k<n-1){nb.last=addPiece(nb.path,s,P,nb.k,n,nb.last);nb.k++}
+  if(nb.tn!==n&&n>0){nb.tail=new Path2D();addPiece(nb.tail,s,P,n-1,n,nb.last);nb.tn=n}
+  return nb;
+}
+function inkFill(g,s,col,a,grow,halo,sp){
+  var nb=nibStroke(s),k;
+  g.lineJoin="round";
+  if(halo>0){g.strokeStyle=rgba(col,halo);g.lineWidth=2.4+grow*1.3;g.stroke(nb.path);if(nb.tail)g.stroke(nb.tail)}
+  if(grow>0){g.strokeStyle=rgba(col,a);g.lineWidth=grow;g.stroke(nb.path);if(nb.tail)g.stroke(nb.tail)}
+  g.fillStyle=rgba(col,a);g.fill(nb.path);if(nb.tail)g.fill(nb.tail);
+  for(k=0;k<s.blots.length;k++)if(s.blots[k])drawBlot(g,s.blots[k],col,sp,a);
+}
+function qpath(g,P,i,j){ /* thin centre line, only used for the wet sheen */
   var n=P.length,sx,sy,k;
   if(i===0){sx=P[0][0]*W;sy=P[0][1]*H}else{sx=(P[i-1][0]+P[i][0])*.5*W;sy=(P[i-1][1]+P[i][1])*.5*H}
   g.beginPath();g.moveTo(sx,sy);
@@ -136,30 +189,14 @@ function qpath(g,P,i,j){ /* smooth curve: each point is a control point, pieces 
     g.quadraticCurveTo(P[k][0]*W,P[k][1]*H,ex,ey);
   }
 }
-function drawInk(g,s,col,wm,a,hk,hw){
-  var P=s.pts,n=P.length,i=0,k;
-  g.lineCap="round";g.lineJoin="round";
-  if(n===1){
-    g.fillStyle=rgba(col,a);g.beginPath();g.arc(P[0][0]*W,P[0][1]*H,s.w*W*.5*wf(P[0][3])*wm,0,6.283);g.fill();
-  }else while(i<n){
-    var c=P[i][3],j=i;
-    while(j+1<n&&P[j+1][3]===c)j++;
-    var w=s.w*W*wf(c)*wm;
-    qpath(g,P,i,j);
-    g.strokeStyle=rgba(col,a*hk);g.lineWidth=w*hw;g.stroke();
-    g.strokeStyle=rgba(col,a);g.lineWidth=w;g.stroke();
-    i=j+1;
-  }
-  for(k=0;k<s.blots.length;k++)if(s.blots[k])drawBlot(g,s.blots[k],col,wm,a);
-}
 function lastT(s){
   var m=s.pts.length?s.pts[s.pts.length-1][2]:0;
   for(var k=0;k<s.blots.length;k++)if(s.blots[k]&&s.blots[k].t>m)m=s.blots[k].t;
   return m;
 }
 function drawSolid(s,t){
-  var col=inkBase(s.mine).join(","),P=s.pts,n=P.length,k;
-  drawInk(ctx,s,col,1,.94,.1,1.7);
+  var col=inkBase(s.mine).join(","),P=s.pts,n=P.length;
+  inkFill(ctx,s,col,.94,0,.1,1);
   var m=n-1;while(m>0&&t-P[m-1][2]<550)m--;
   if(n-m>=2&&t-P[n-1][2]<550){ /* wet sheen */
     qpath(ctx,P,m,n-1);
@@ -167,27 +204,58 @@ function drawSolid(s,t){
     ctx.lineWidth=s.w*W*.3;ctx.stroke();
   }
 }
+
+/* ---------- ways to disappear (chosen by the admin, stored per stroke) ---------- */
+function hr(seed,i){var t=(seed+Math.imul(i,0x9E3779B1))|0;t=Math.imul(t^(t>>>15),1|t);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296}
+function ash(s,p,col){ /* specks break away from the line, drift and fall */
+  var P=s.pts,n=P.length,stride=Math.max(1,Math.floor(n/90)),seed=Math.round(P[0][0]*1e4)*7919+Math.round(P[0][1]*1e4)*31,j,q;
+  for(j=0;j<n;j+=stride)for(q=0;q<2;q++){
+    var id=j*8+q*4,d=.03+.6*hr(seed,id),u=(p-d)/(1-d);
+    if(u<=0||u>=1)continue;
+    var x=P[j][0]*W+(hr(seed,id+1)-.3)*84*u,y=P[j][1]*H+(hr(seed,id+2)*38-6)*u+48*u*u,r=.5+hr(seed,id+3)*1.4;
+    ctx.fillStyle=rgba(col,.85*(1-u)*(1-u*.4));
+    if(r>1.1){ctx.beginPath();ctx.arc(x,y,r,0,6.283);ctx.fill()}else ctx.fillRect(x-r,y-r,r*2,r*2);
+  }
+}
 function drawDissolve(s,p){
-  var e=ease(p),st=Math.round(p*(MS-1)),P=s.pts,k,x0=1e9,y0=1e9,x1=-1e9,y1=-1e9,mr=0;
+  var fx=s.fx|0,e=ease(p),P=s.pts,k,i;
+  var base=inkBase(s.mine),tg=light?[120,110,100]:[118,86,60],f=e*.65;
+  var col=Math.round(base[0]+(tg[0]-base[0])*f)+","+Math.round(base[1]+(tg[1]-base[1])*f)+","+Math.round(base[2]+(tg[2]-base[2])*f);
+  if(fx===4){ /* plain fade */
+    var kf=1-e;inkFill(ctx,s,col,.94*kf,0,.1*kf,1+.1*e);return;
+  }
+  if(fx===1){ /* wet ink bleeds outwards while it pales */
+    var kb=1-e;
+    for(i=2;i>=0;i--)inkFill(ctx,s,col,.2*kb,e*(3+i*7),0,1+e*(1+i));
+    inkFill(ctx,s,col,.94*kb*kb,0,.1*kb,1+.2*e);return;
+  }
+  /* grain variants: 0 soaks in, 2 rises like vapour, 3 crumbles to ash */
+  var x0=1e9,y0=1e9,x1=-1e9,y1=-1e9,mr=0;
   for(k=0;k<P.length;k++){var x=P[k][0]*W,y=P[k][1]*H;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}
-  for(k=0;k<s.blots.length;k++){var b=s.blots[k];if(!b)continue;var bx=b.x*W,by=b.y*H;mr=Math.max(mr,b.r*W);if(bx<x0)x0=bx;if(bx>x1)x1=bx;if(by<y0)y0=y0>by?by:y0;if(by>y1)y1=by}
-  var mg=s.w*W*3+mr*3+10;
+  for(k=0;k<s.blots.length;k++){var b=s.blots[k];if(!b)continue;var bx=b.x*W,by=b.y*H;mr=Math.max(mr,b.r*W);if(bx<x0)x0=bx;if(bx>x1)x1=bx;if(by<y0)y0=by;if(by>y1)y1=by}
+  var mg=s.w*W*8+mr*3+14;
   var rx=Math.max(0,Math.floor((x0-mg)*dpr)),ry=Math.max(0,Math.floor((y0-mg)*dpr)),
       rw=Math.min(oc.width,Math.ceil((x1+mg)*dpr))-rx,rh=Math.min(oc.height,Math.ceil((y1+mg)*dpr))-ry;
   if(rw<=0||rh<=0)return;
-  var base=inkBase(s.mine),tg=light?[120,110,100]:[118,86,60],f=e*.65;
-  var col=Math.round(base[0]+(tg[0]-base[0])*f)+","+Math.round(base[1]+(tg[1]-base[1])*f)+","+Math.round(base[2]+(tg[2]-base[2])*f);
+  var pm=fx===3?clamp(p*1.5,0,1):fx===2?clamp(p*1.2,0,1):p,stm=Math.round(pm*(MS-1));
   octx.setTransform(1,0,0,1,0,0);octx.globalCompositeOperation="source-over";octx.globalAlpha=1;
   octx.clearRect(rx,ry,rw,rh);
   octx.setTransform(dpr,0,0,dpr,0,0);
-  drawInk(octx,s,col,1+.3*e,1,.14+.1*e,1.7+.9*e);
+  inkFill(octx,s,col,1,(fx===0?1.4:.7)*e,.14+.1*e,1+.3*e);
   octx.setTransform(1,0,0,1,0,0);
   octx.globalCompositeOperation="destination-in";
-  octx.fillStyle=pat(st);octx.fillRect(rx,ry,rw,rh);
+  octx.fillStyle=pat(stm);octx.fillRect(rx,ry,rw,rh);
   octx.globalCompositeOperation="source-over";
-  ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=.94*(1-.5*e);
-  ctx.drawImage(oc,rx,ry,rw,rh,rx,ry,rw,rh);
+  ctx.setTransform(1,0,0,1,0,0);
+  if(fx===2){
+    var G=[[0,0,.9],[-2,-9,.5],[3,-20,.32],[-3,-33,.2]];
+    for(i=0;i<G.length;i++){
+      ctx.globalAlpha=G[i][2]*(1-e);
+      ctx.drawImage(oc,rx,ry,rw,rh,rx+G[i][0]*e*dpr,ry+G[i][1]*e*dpr,rw,rh);
+    }
+  }else{ctx.globalAlpha=.94*(1-.5*e);ctx.drawImage(oc,rx,ry,rw,rh,rx,ry,rw,rh)}
   ctx.globalAlpha=1;ctx.setTransform(dpr,0,0,dpr,0,0);
+  if(fx===3)ash(s,p,col);
 }
 function frame(){
   requestAnimationFrame(frame);
@@ -212,9 +280,29 @@ function frame(){
 }
 requestAnimationFrame(frame);
 
-/* ---------- my drawing: stylus first, palm rejection ---------- */
+/* ---------- my drawing: stylus first, and no stroke can get stuck ---------- */
 var cur=null,curId=-1,curType="",buf=[],bq=[],sid=0,flushT=null,lastX=0,lastY=0,pauseIdx=-1,pauseStart=0;
 var penSeen=false;try{penSeen=localStorage.getItem("rd-pen")==="1"}catch(e){}
+/* ?debug in the address shows what the pen/touch screen really sends */
+var DBG=/[?&]debug\b/.test(location.search),dbgEl=null,dbgL=[],dbgC={};
+function dbgShow(){
+  if(!DBG)return;
+  if(!dbgEl){dbgEl=document.createElement("pre");dbgEl.id="dbg";document.body.appendChild(dbgEl)}
+  dbgEl.textContent=Object.keys(dbgC).sort().map(function(k){return k+"="+dbgC[k]}).join("  ")+"\n"+dbgL.join("\n");
+}
+function dlog(e,tag){
+  if(!DBG)return;
+  var k=tag+":"+e.pointerType;dbgC[k]=(dbgC[k]||0)+1;
+  dbgL.push(tag+" "+e.pointerType+" id"+e.pointerId+" b"+e.buttons+" p"+(+e.pressure).toFixed(2)+" "+Math.round(e.width)+"x"+Math.round(e.height)+(cur?" [drawing]":""));
+  if(dbgL.length>13)dbgL.shift();
+  dbgShow();
+}
+if(DBG){
+  ["pointerdown","pointerup","pointercancel","lostpointercapture","pointerleave"].forEach(function(n){addEventListener(n,function(e){dlog(e,n.replace("pointer",""))},true)});
+  addEventListener("contextmenu",function(){dbgL.push("contextmenu");dbgShow()},true);
+  addEventListener("blur",function(){dbgL.push("window blur");dbgShow()});
+  setInterval(dbgShow,500);dbgShow();
+}
 function pos(e){var r=cv.getBoundingClientRect();return[clamp((e.clientX-r.left)/r.width,0,1),clamp((e.clientY-r.top)/r.height,0,1)]}
 function addBlot(x,y,r,t){cur.blots.push({x:x,y:y,r:r,t:t});bq.push(cur.blots.length-1);return cur.blots.length-1}
 function drops(x,y,ax,ay,n,spread,fast,now){
@@ -227,7 +315,7 @@ function drops(x,y,ax,ay,n,spread,fast,now){
   }
 }
 function mk(x,y,c,now,w,vs){
-  return{sid:++sid,pts:[[x,y,now,c]],blots:[],w:w,life:cfg.life*1000,mine:true,lt:now,vs:vs,t0:now,pr:.5};
+  return{sid:++sid,pts:[[x,y,now,c]],blots:[],w:w,life:cfg.life*1000,mine:true,lt:now,vs:vs,t0:now,pr:.5,fx:cfg.fx|0};
 }
 function send(end){
   if(!cur)return;
@@ -236,11 +324,12 @@ function send(end){
   var p=[],b=[],seen={},rest=[];
   buf.forEach(function(q){p.push(Math.round(q[0]*1e4),Math.round(q[1]*1e4),q[2])});
   bq.forEach(function(ix){
-    if(seen[ix])return;
+    var o=cur.blots[ix];
+    if(!o||seen[ix])return;
     if(b.length>=12){rest.push(ix);return}
-    seen[ix]=1;var o=cur.blots[ix];b.push([ix,Math.round(o.x*1e4),Math.round(o.y*1e4),Math.round(o.r*1e5)]);
+    seen[ix]=1;b.push([ix,Math.round(o.x*1e4),Math.round(o.y*1e4),Math.round(o.r*1e5)]);
   });
-  var d={i:cur.sid,p:p,b:b,w:Math.round(cur.w*1e5),l:cfg.life};if(end)d.e=1;
+  var d={i:cur.sid,p:p,b:b,w:Math.round(cur.w*1e5),l:cfg.life,f:cur.fx};if(end)d.e=1;
   buf=[];bq=rest;try{rm.emit("stroke",d).catch(function(){})}catch(e){}
 }
 function tick(){
@@ -248,46 +337,74 @@ function tick(){
   var now=performance.now();
   if(now-cur.lt>140){ /* pen rests: ink pools into a blot, sometimes with satellites */
     var pl=cur.pts[cur.pts.length-1];
-    if(pauseIdx<0){pauseStart=now;pauseIdx=addBlot(pl[0],pl[1],cur.w*.8,now);if(Math.random()<.6)drops(pl[0],pl[1],0,0,1+Math.floor(Math.random()*3),14,false,now)}
+    if(pauseIdx<0||!cur.blots[pauseIdx]){pauseStart=now;pauseIdx=addBlot(pl[0],pl[1],cur.w*.8,now);if(Math.random()<.6)drops(pl[0],pl[1],0,0,1+Math.floor(Math.random()*3),14,false,now)}
     else if(now-pauseStart<1500){var o=cur.blots[pauseIdx];o.r=Math.min(cur.w*3.3,o.r*1.13);o.sh=null;bq.push(pauseIdx)}
   }else pauseIdx=-1;
   send(false);
 }
-/* As soon as a stylus is seen (even hovering), fingers and palms stop drawing — also next time. */
+/* As soon as a stylus is seen (even hovering), fingers and palms stop drawing, also next time. */
 ["pointerover","pointerenter","pointermove","pointerdown"].forEach(function(n){
   addEventListener(n,function(e){
     if(e.pointerType==="pen"&&!penSeen){penSeen=true;try{localStorage.setItem("rd-pen","1")}catch(x){}}
   },true);
 });
 function rejected(e){return e.pointerType==="touch"&&(penSeen||e.width>48||e.height>48)}
+function contact(e){return(e.buttons&1)===1||e.pressure>0}
 function abortStroke(){ /* a palm began a stroke and then the pen arrived: throw the palm's stroke away */
   if(!cur)return;
   clearInterval(flushT);
   var ix=strokes.indexOf(cur);if(ix>-1)strokes.splice(ix,1);
   cur=null;curId=-1;buf=[];bq=[];
 }
-cv.addEventListener("pointerdown",function(e){
-  e.preventDefault();
-  if(rejected(e))return;
-  if(cur){if(e.pointerType==="pen"&&curType!=="pen")abortStroke();else return}
+function begin(e){
+  var q=pos(e),now=performance.now();
   try{cv.setPointerCapture(e.pointerId)}catch(x){}
   $("hint").classList.add("gone");
-  var q=pos(e),now=performance.now();lastX=q[0];lastY=q[1];
+  lastX=q[0];lastY=q[1];
   cur=mk(q[0],q[1],6,now,.0042,.5);curId=e.pointerId;curType=e.pointerType;
   strokes.push(cur);
   buf=[[q[0],q[1],6]];bq=[];pauseIdx=-1;
   addBlot(q[0],q[1],cur.w*(.7+Math.random()*.5),now); /* the pen touches the page */
   if(Math.random()<.7)drops(q[0],q[1],0,0,1+Math.floor(Math.random()*3),12,false,now);
   clearInterval(flushT);flushT=setInterval(tick,70);
+}
+function finish(){
+  if(!cur)return;
+  var n=cur.pts.length;
+  if(cur.vs>.9&&n>3){ /* flick at the end of a quick stroke */
+    var a=cur.pts[n-2],b=cur.pts[n-1],dx=(b[0]-a[0])*W,dy=(b[1]-a[1])*H,dl=Math.hypot(dx,dy)||1;
+    drops(b[0],b[1],dx/dl,dy/dl,2+Math.floor(Math.random()*4),34,true,performance.now());
+  }
+  send(true);clearInterval(flushT);cur=null;curId=-1;
+}
+cv.addEventListener("pointerdown",function(e){
+  e.preventDefault();
+  if(rejected(e))return;
+  if(cur){ /* never let an old stroke block a new one */
+    if(e.pointerType==="touch"&&curType==="pen")return;
+    if(e.pointerType==="pen"&&curType==="touch")abortStroke();else finish();
+  }
+  begin(e);
 });
 cv.addEventListener("pointermove",function(e){
   if(rejected(e))return;
-  var q=pos(e);
-  if(rm&&(!cur||e.pointerId===curId)){try{rm.presence({cx:Math.round(q[0]*1e3)/1e3,cy:Math.round(q[1]*1e3)/1e3}).catch(function(){})}catch(x){}}
-  if(!cur||e.pointerId!==curId)return;
+  if(DBG){var kk="move:"+e.pointerType;dbgC[kk]=(dbgC[kk]||0)+1}
+  var q=pos(e),ct=contact(e);
+  if(rm&&(!cur||e.pointerType===curType)){try{rm.presence({cx:Math.round(q[0]*1e3)/1e3,cy:Math.round(q[1]*1e3)/1e3}).catch(function(){})}catch(x){}}
+  if(cur){
+    if(e.pointerId!==curId){
+      if(e.pointerType==="pen"&&curType==="pen"&&ct)curId=e.pointerId; /* the pen got a new id: keep going */
+      else return;
+    }
+    if(!ct&&e.pointerType!=="touch"){finish();return} /* the pen is off the screen, the pointerup was lost */
+  }else{
+    if(ct&&e.pointerType==="pen")begin(e); /* contact without a pointerdown: carry on writing */
+    else return;
+  }
   var evs=e.getCoalescedEvents?e.getCoalescedEvents():[e];
   if(!evs.length)evs=[e];
   evs.forEach(function(ev){
+    if(!cur)return;
     var r=pos(ev),now=performance.now();
     lastX+=(r[0]-lastX)*.7;lastY+=(r[1]-lastY)*.7;
     var pl=cur.pts[cur.pts.length-1],dx=(lastX-pl[0])*W,dy=(lastY-pl[1])*H,dist=Math.hypot(dx,dy);
@@ -301,23 +418,18 @@ cv.addEventListener("pointermove",function(e){
     if(Math.random()<(fast?.07:.025))drops(lastX,lastY,dx/dist,dy/dist,fast?1+Math.floor(Math.random()*3):1,fast?28:9,fast,now);
     if(now-cur.t0>2800){ /* long strokes are cut so each piece sinks in as one */
       send(true);var vs=cur.vs,pr=cur.pr;
-      cur=mk(lastX,lastY,c,now,cur.w,vs);cur.pr=pr;strokes.push(cur);buf=[[lastX,lastY,c]];bq=[];
+      cur=mk(lastX,lastY,c,now,cur.w,vs);cur.pr=pr;strokes.push(cur);buf=[[lastX,lastY,c]];bq=[];pauseIdx=-1;
     }
   });
 });
-function up(){
+/* the end of a stroke is heard on the whole window, so a pen that slid off the page still ends it */
+function endEv(e){
   if(!cur)return;
-  var n=cur.pts.length;
-  if(cur.vs>.9&&n>3){ /* flick at the end of a quick stroke */
-    var a=cur.pts[n-2],b=cur.pts[n-1],dx=(b[0]-a[0])*W,dy=(b[1]-a[1])*H,dl=Math.hypot(dx,dy)||1;
-    drops(b[0],b[1],dx/dl,dy/dl,2+Math.floor(Math.random()*4),34,true,performance.now());
-  }
-  send(true);clearInterval(flushT);cur=null;curId=-1;
+  if(e.pointerId===curId||(e.pointerType==="pen"&&curType==="pen"))finish();
 }
-function end(e){if(cur&&e.pointerId===curId)up()} /* only the pointer that draws can end the stroke */
-cv.addEventListener("pointerup",end);cv.addEventListener("pointercancel",end);
-addEventListener("blur",up);
-cv.addEventListener("contextmenu",function(e){e.preventDefault()});
+addEventListener("pointerup",endEv,true);addEventListener("pointercancel",endEv,true);
+document.addEventListener("visibilitychange",function(){if(document.hidden)finish()});
+addEventListener("contextmenu",function(e){e.preventDefault()},true);
 document.addEventListener("gesturestart",function(e){e.preventDefault()});
 cv.addEventListener("pointerleave",function(e){if(rm&&!rejected(e)){try{rm.presence({cx:null,cy:null}).catch(function(){})}catch(x){}}});
 
@@ -328,7 +440,7 @@ function onStroke(m){
   if(!d||!Array.isArray(d.p)||d.p.length>450||(typeof d.i!=="number"&&typeof d.i!=="string"))return;
   var key=m.peer+":"+d.i,s=remote.get(key),now=performance.now();
   if(!s){
-    s={pts:[],blots:[],w:clamp((+d.w||420)/1e5,.001,.01),life:clamp(+d.l||8,2,30)*1000,mine:false,key:key};
+    s={pts:[],blots:[],w:clamp((+d.w||420)/1e5,.001,.01),life:clamp(+d.l||8,2,30)*1000,mine:false,key:key,fx:clamp(Math.round(+d.f)||0,0,FXN.length-1)};
     remote.set(key,s);strokes.push(s);
   }
   var n=Math.floor(d.p.length/3),k;
@@ -408,7 +520,7 @@ function connectRoom(name,key,cb){
     },
     onPeers:function(f){pl.push(f);return function(){pl=pl.filter(function(x){return x!==f})}},
     onConnection:function(f){cl.push(f);return function(){cl=cl.filter(function(x){return x!==f})}},
-    sendCfg:function(c){raw({t:"cfg",life:c.life,title:c.title})},
+    sendCfg:function(c){raw({t:"cfg",life:c.life,title:c.title,fx:c.fx|0})},
     leave:function(){closed=true;clearInterval(pingT);clearTimeout(prT);try{ws.close()}catch(e){}}
   };
   open();
@@ -419,6 +531,7 @@ function connectRoom(name,key,cb){
 function applyCfg(m){
   if(!m)return;
   var l=+m.life;if(isFinite(l))cfg.life=clamp(l,2,30);
+  var fxv=+m.fx;if(isFinite(fxv))cfg.fx=clamp(Math.round(fxv),0,FXN.length-1);
   cfg.title=typeof m.title==="string"?m.title.replace(/[\u0000-\u001f\u007f]/g,"").slice(0,60):"";
   setTitle(cfg.title);
 }
@@ -540,6 +653,30 @@ $("bgclr").addEventListener("click",async function(){
     else if(resp.status===429)setStatus("Подожди пару секунд и попробуй ещё раз.");
   }catch(e){}
 });
+/* ---------- disappearing style: picker and a side-by-side preview (admin) ---------- */
+(function(){
+  var sel=$("fxsel");
+  FXN.forEach(function(n,i){var o=document.createElement("option");o.value=i;o.textContent=(i+1)+". "+n;sel.appendChild(o)});
+  sel.value=cfg.fx|0;
+  sel.addEventListener("change",function(){cfg.fx=clamp(+sel.value|0,0,FXN.length-1);if(rm)rm.sendCfg(cfg)});
+})();
+var demoLabs=null,demoT=null;
+function demo(){
+  var now=performance.now(),i,u,y,pts,s,life=1500,f,lab;
+  if(demoLabs&&demoLabs.parentNode)demoLabs.parentNode.removeChild(demoLabs);
+  demoLabs=document.createElement("div");demoLabs.id="demolabs";page.appendChild(demoLabs);
+  for(f=0;f<FXN.length;f++){
+    y=.17+f*.16;pts=[];
+    for(i=0;i<=44;i++){u=i/44;pts.push([.12+u*.76,y+Math.sin(u*10+f)*.03+Math.sin(u*3.3)*.018,now-(44-i)*7,clamp(6+Math.round(Math.sin(u*8)*4),0,12)])}
+    s={sid:++sid,pts:pts,blots:[],w:.0042,life:life,mine:true,lt:now,fx:f};
+    for(i=0;i<5;i++)s.blots.push({x:.12+Math.random()*.76,y:y+(Math.random()-.5)*.06,r:.0014+Math.random()*.003,t:now});
+    strokes.push(s);
+    lab=document.createElement("div");lab.textContent=(f+1)+". "+FXN[f];lab.style.top=(y*100-5.4)+"%";demoLabs.appendChild(lab);
+  }
+  $("hint").classList.add("gone");
+  clearTimeout(demoT);demoT=setTimeout(function(){if(demoLabs&&demoLabs.parentNode)demoLabs.parentNode.removeChild(demoLabs);demoLabs=null},life+FADE*1000+400);
+}
+$("fxdemo").addEventListener("click",demo);
 start();
 })();
 </script>
