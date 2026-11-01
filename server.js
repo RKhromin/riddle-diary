@@ -54,12 +54,55 @@ function handleBg(req, res, u) {
   });
 }
 
+// Картинка для страницы: только администратор, только PNG; хранится до следующей картинки.
+function handleImg(req, res, u) {
+  const reply = (code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
+  const name = (u.searchParams.get("room") || "").toLowerCase();
+  const key = String(req.headers["x-admin-key"] || "").slice(0, 64);
+  const room = rooms.get(name);
+  if (!room || !room.adminKey || key !== room.adminKey) return reply(403, { error: "forbidden" });
+  const now = Date.now();
+  if (now - (room.lastImg || 0) < 1000) return reply(429, { error: "slow down" });
+  room.lastImg = now;
+  const chunks = [];
+  let size = 0, dead = false;
+  req.on("data", (c) => {
+    if (dead) return;
+    size += c.length;
+    if (size > MAX_BG) { dead = true; return reply(413, { error: "too large" }); }
+    chunks.push(c);
+  });
+  req.on("end", () => {
+    if (dead) return;
+    const buf = Buffer.concat(chunks);
+    if (buf.length < 8 || buf[0] !== 0x89 || buf[1] !== 0x50 || buf[2] !== 0x4e || buf[3] !== 0x47) return reply(415, { error: "png only" });
+    room.img = { data: buf, ver: now };
+    const l = clamp(parseFloat(u.searchParams.get("l")) || 8, 2, 30);
+    const f = clamp(Math.round(parseFloat(u.searchParams.get("f"))) || 0, 0, 9);
+    broadcast(room, { t: "ev", topic: "img", data: { v: now, l, f }, peer: "server" });
+    reply(200, { ver: now });
+  });
+}
+
 const server = http.createServer((req, res) => {
   const url = (req.url || "/").split("?")[0];
   if (req.method === "POST" && url === "/bg") {
     let u;
     try { u = new URL(req.url, "http://localhost"); } catch (e) { res.writeHead(400); return res.end(); }
     return handleBg(req, res, u);
+  }
+  if (req.method === "POST" && url === "/img") {
+    let u;
+    try { u = new URL(req.url, "http://localhost"); } catch (e) { res.writeHead(400); return res.end(); }
+    return handleImg(req, res, u);
+  }
+  if (req.method === "GET" && url.startsWith("/img/")) {
+    let name = "";
+    try { name = decodeURIComponent(url.slice(5)).toLowerCase(); } catch (e) {}
+    const room = rooms.get(name);
+    if (!room || !room.img) { res.writeHead(404); return res.end(); }
+    res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
+    return res.end(room.img.data);
   }
   if (req.method === "GET" && url.startsWith("/bg/")) {
     let name = "";
@@ -159,7 +202,7 @@ wss.on("connection", (ws, req) => {
       broadcast(room, { t: "ev", topic: "stroke", data: m.data, peer: id }, me);
     } else if (m.t === "ev" && m.topic === "msg" && me.admin && m.data && typeof m.data === "object") {
       // сообщение с клавиатуры: только от администратора, нигде не хранится
-      const text = typeof m.data.t === "string" ? m.data.t.replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 200) : "";
+      const text = typeof m.data.t === "string" ? m.data.t.replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, " ").slice(0, 500) : "";
       if (!text.trim()) return;
       broadcast(room, { t: "ev", topic: "msg", data: { t: text, l: clamp(Number(m.data.l) || 8, 2, 30), f: clamp(Math.round(Number(m.data.f)) || 0, 0, 9) }, peer: id }, me);
     } else if (m.t === "pr" && m.p && typeof m.p === "object") {
