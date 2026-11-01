@@ -63,7 +63,7 @@ select option{background:#1a1411;color:#d8c8a8}
 </div>
 <div id="bar">
   <span id="status">Страница пуста…</span>
-  <label class="life">Чернила впитаются через <b id="lv">8</b> с <input id="life" type="range" min="2" max="30" value="8"></label>
+  <label class="life">Чернила впитаются через <b id="lv">4</b> с <input id="life" type="range" min="2" max="30" value="4"></label>
   <input id="ttl" maxlength="60" placeholder="Заголовок страницы…" autocomplete="off" aria-label="Заголовок"><button id="bgbtn">Фон…</button><button id="bgclr">Бумага</button><label class="life">Исчезновение <select id="fxsel"></select></label><button id="fxdemo">Сравнить все</button><input type="file" id="bgfile" accept="image/*" hidden><button id="snd">Звук: вкл</button><button id="copy">Скопировать ссылку</button>
   <div class="msgrow"><textarea id="msg" rows="2" maxlength="500" placeholder="Сообщение на страницу (Enter — новая строка)…" autocomplete="off" aria-label="Сообщение"></textarea><button id="msgbtn">Показать</button><button id="imgbtn">Картинка…</button><input type="file" id="imgfile" accept="image/png,image/*" hidden></div>
 </div>
@@ -75,7 +75,7 @@ var $=function(id){return document.getElementById(id)};
 var page=$("page"),cv=$("cv"),ctx=cv.getContext("2d"),bar=$("bar");
 var oc=document.createElement("canvas"),octx=oc.getContext("2d");
 var W=300,H=400,dpr=1,idle=false,isAdmin=false,adminPeer=null;
-var strokes=[],remote=new Map(),cfg={life:8,title:"",fx:0},maskPats=[];
+var strokes=[],remote=new Map(),cfg={life:4,title:"Напишите что-нибудь...",fx:0},maskPats=[];
 var clamp=function(v,a,b){return Math.max(a,Math.min(b,v))};
 var wf=function(c){return .6+c*.095}; /* c = 0..12 */
 var ease=function(f){return f*f*(3-2*f)};
@@ -304,33 +304,6 @@ function layoutText(s){
   s.size=size;s.chars=chars;s.n=n;s.pts=pts;s.w=size/W*.06;
   s.bb=[bx0-size,y0-size*1.3,bx1+size,y0+(lines.length-1)*lh+size*.8];
   s.seed=seed;s.step=clamp(3000/Math.max(1,n),50,120);s.dur=1400;
-  /* drops that fly off the nib: the same for everyone, because they grow from the text itself */
-  s.drops=[];
-  chars.forEach(function(c,k){
-    var base=k*17+5,q;
-    if(k===0)s.drops.push({x:c.x+size*.1,y:c.y-size*.05,r:size*.05,e:false,an:0,t:s.dur*.3}); /* the pen touches the page */
-    if(hr(seed,base)<.3){
-      var nd=1+Math.floor(hr(seed,base+1)*3);
-      for(q=0;q<nd;q++){
-        var an=hr(seed,base+2+q*7)<.6?.1+hr(seed,base+3+q*7)*1.0:hr(seed,base+3+q*7)*6.283;
-        var dist=size*(.1+Math.pow(hr(seed,base+4+q*7),1.6)*1.0),big=hr(seed,base+5+q*7)<.09;
-        s.drops.push({x:c.x+size*.25+Math.cos(an)*dist,y:c.y-size*.22+Math.sin(an)*dist,
-          r:size*(big?.04+hr(seed,base+6+q*7)*.025:.009+hr(seed,base+6+q*7)*.024),
-          e:hr(seed,base+7+q*7)<.3,an:an,t:c.i*s.step+s.dur*.55+hr(seed,base+8+q*7)*260});
-      }
-    }
-  });
-}
-function drawDrops(g,s,col,alpha,el){
-  var k,d,a;
-  for(k=0;k<s.drops.length;k++){
-    d=s.drops[k];a=1;
-    if(el!==null){a=clamp((el-d.t)/280,0,1);if(a<=0)continue;a=ease(a)}
-    g.save();g.globalAlpha=alpha*a;g.fillStyle=rgba(col,1);
-    g.beginPath();
-    if(d.e)g.ellipse(d.x,d.y,d.r*(1+.7*a),d.r*.75,d.an,0,6.283);else g.arc(d.x,d.y,d.r*(.5+.5*a),0,6.283);
-    g.fill();g.restore();
-  }
 }
 function drawChars(g,s,col,alpha,upto,t0){
   g.font=s.size+"px "+TXTFONT;g.textBaseline="alphabetic";
@@ -379,18 +352,17 @@ function drawTextSolid(s,t){
       ctx.translate(c.x,c.y);ctx.rotate(c.r);ctx.fillText(c.c,0,0);ctx.restore();
     }else seepChar(s,c,u,col,tg);
   }
-  drawDrops(ctx,s,col,.93,el);
   ctx.restore();
 }
 function drawTextDissolve(s,p){
   var fx=s.fx|0,e=ease(p),base=inkBase(true),tg=light?[120,110,100]:[118,86,60],f=e*.65;
   var col=[Math.round(base[0]+(tg[0]-base[0])*f),Math.round(base[1]+(tg[1]-base[1])*f),Math.round(base[2]+(tg[2]-base[2])*f)];
   var kf=1-e;
-  if(fx===4){ctx.save();drawChars(ctx,s,col,.93*kf,null);drawDrops(ctx,s,col,.93*kf,null);ctx.restore();return}
+  if(fx===4){ctx.save();drawChars(ctx,s,col,.93*kf,null);ctx.restore();return}
   if(fx===1){
     ctx.save();
     ctx.shadowColor=rgba(col,.55*kf);ctx.shadowBlur=2+e*s.size*.45;
-    drawChars(ctx,s,col,.93*kf*kf,null);drawDrops(ctx,s,col,.93*kf*kf,null);
+    drawChars(ctx,s,col,.93*kf*kf,null);
     ctx.restore();return;
   }
   var rx=Math.max(0,Math.floor(s.bb[0]*dpr)),ry=Math.max(0,Math.floor(s.bb[1]*dpr)),
@@ -401,7 +373,7 @@ function drawTextDissolve(s,p){
   octx.clearRect(rx,ry,rw,rh);
   octx.setTransform(dpr,0,0,dpr,0,0);
   octx.save();octx.shadowColor=rgba(col,.4);octx.shadowBlur=(fx===0?1+e*5:1+e*2);
-  drawChars(octx,s,col,1,null);drawDrops(octx,s,col,1,null);octx.restore();
+  drawChars(octx,s,col,1,null);octx.restore();
   octx.setTransform(1,0,0,1,0,0);
   octx.globalCompositeOperation="destination-in";
   octx.fillStyle=pat(stm);octx.fillRect(rx,ry,rw,rh);
@@ -1018,6 +990,7 @@ function sendMsg(){
 }
 $("msgbtn").addEventListener("click",sendMsg);
 $("msg").addEventListener("keydown",function(e){if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();sendMsg()}}); /* plain Enter = new line */
+$("ttl").value=cfg.title;setTitle(cfg.title);
 start();
 })();
 </script>

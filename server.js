@@ -159,7 +159,7 @@ wss.on("connection", (ws, req) => {
 
   let room = rooms.get(name);
   if (!room) {
-    room = { peers: new Map(), adminKey: "", cfg: { life: 8, title: "", fx: 0 }, bg: null, lastBg: 0, timer: null };
+    room = { peers: new Map(), adminKey: "", cfg: { life: 4, title: "Напишите что-нибудь...", fx: 0 }, bg: null, lastBg: 0, timer: null };
     rooms.set(name, room);
   }
   clearTimeout(room.timer);
