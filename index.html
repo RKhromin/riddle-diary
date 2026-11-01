@@ -124,7 +124,7 @@ function pat(st){
 
 /* ---------- ink rendering ---------- */
 var NIB=-0.72; /* broad nib: its edge rises to the right (~41 deg), like an italic fountain pen */
-var FXN=["Впитывание","Растекание","Испарение","Пепел","Выцветание"];
+var FXN=["Впитывание","Растекание","Испарение","Пепел","Выцветание","Испарение вниз"];
 function shape(b){
   if(b.sh)return b.sh;
   var R=rnd(Math.round(b.x*1e4)*7919+Math.round(b.y*1e4)),sh=[[0,0,1]];
@@ -242,18 +242,18 @@ function drawDissolve(s,p){
   var rx=Math.max(0,Math.floor((x0-mg)*dpr)),ry=Math.max(0,Math.floor((y0-mg)*dpr)),
       rw=Math.min(oc.width,Math.ceil((x1+mg)*dpr))-rx,rh=Math.min(oc.height,Math.ceil((y1+mg)*dpr))-ry;
   if(rw<=0||rh<=0)return;
-  var pm=fx===3?clamp(p*1.5,0,1):fx===2?clamp(p*1.2,0,1):p,stm=Math.round(pm*(MS-1));
+  var pm=fx===3?clamp(p*1.5,0,1):(fx===2||fx===5)?clamp(p*1.2,0,1):p,stm=Math.round(pm*(MS-1));
   octx.setTransform(1,0,0,1,0,0);octx.globalCompositeOperation="source-over";octx.globalAlpha=1;
   octx.clearRect(rx,ry,rw,rh);
   octx.setTransform(dpr,0,0,dpr,0,0);
-  inkFill(octx,s,col,1,(fx===0?1.4:.7)*e,.14+.1*e,1+.3*e);
+  inkFill(octx,s,col,1,(fx===5?2.4:fx===0?1.4:.7)*e,fx===5?.2+.15*e:.14+.1*e,fx===5?1+.5*e:1+.3*e);
   octx.setTransform(1,0,0,1,0,0);
   octx.globalCompositeOperation="destination-in";
   octx.fillStyle=pat(stm);octx.fillRect(rx,ry,rw,rh);
   octx.globalCompositeOperation="source-over";
   ctx.setTransform(1,0,0,1,0,0);
-  if(fx===2){
-    var G=[[0,0,.9],[-2,-9,.5],[3,-20,.32],[-3,-33,.2]];
+  if(fx===2||fx===5){
+    var G=fx===5?[[0,0,.9],[2,9,.5],[-3,20,.34],[3,34,.22],[-2,48,.12]]:[[0,0,.9],[-2,-9,.5],[3,-20,.32],[-3,-33,.2]];
     for(i=0;i<G.length;i++){
       ctx.globalAlpha=G[i][2]*(1-e);
       ctx.drawImage(oc,rx,ry,rw,rh,rx+G[i][0]*e*dpr,ry+G[i][1]*e*dpr,rw,rh);
@@ -368,19 +368,19 @@ function drawTextDissolve(s,p){
   var rx=Math.max(0,Math.floor(s.bb[0]*dpr)),ry=Math.max(0,Math.floor(s.bb[1]*dpr)),
       rw=Math.min(oc.width,Math.ceil(s.bb[2]*dpr))-rx,rh=Math.min(oc.height,Math.ceil(s.bb[3]*dpr))-ry;
   if(rw<=0||rh<=0)return;
-  var pm=fx===3?clamp(p*1.5,0,1):fx===2?clamp(p*1.2,0,1):p,stm=Math.round(pm*(MS-1));
+  var pm=fx===3?clamp(p*1.5,0,1):(fx===2||fx===5)?clamp(p*1.2,0,1):p,stm=Math.round(pm*(MS-1));
   octx.setTransform(1,0,0,1,0,0);octx.globalCompositeOperation="source-over";octx.globalAlpha=1;
   octx.clearRect(rx,ry,rw,rh);
   octx.setTransform(dpr,0,0,dpr,0,0);
-  octx.save();octx.shadowColor=rgba(col,.4);octx.shadowBlur=(fx===0?1+e*5:1+e*2);
+  octx.save();octx.shadowColor=rgba(col,.4);octx.shadowBlur=(fx===5?1+e*9:fx===0?1+e*5:1+e*2);
   drawChars(octx,s,col,1,null);octx.restore();
   octx.setTransform(1,0,0,1,0,0);
   octx.globalCompositeOperation="destination-in";
   octx.fillStyle=pat(stm);octx.fillRect(rx,ry,rw,rh);
   octx.globalCompositeOperation="source-over";
   ctx.setTransform(1,0,0,1,0,0);
-  if(fx===2){
-    var G=[[0,0,.9],[-2,-9,.5],[3,-20,.32],[-3,-33,.2]],i;
+  if(fx===2||fx===5){
+    var G=fx===5?[[0,0,.9],[2,9,.5],[-3,20,.34],[3,34,.22],[-2,48,.12]]:[[0,0,.9],[-2,-9,.5],[3,-20,.32],[-3,-33,.2]],i;
     for(i=0;i<G.length;i++){
       ctx.globalAlpha=G[i][2]*(1-e);
       ctx.drawImage(oc,rx,ry,rw,rh,rx+G[i][0]*e*dpr,ry+G[i][1]*e*dpr,rw,rh);
@@ -418,8 +418,13 @@ function drawImgDissolve(s,p){
     for(i=2;i>=0;i--){var k=1+e*(.03+i*.035),w=b[2]*k,hh=b[3]*k;ctx.globalAlpha=.2*kf;ctx.drawImage(s.img,b[0]-(w-b[2])/2,b[1]-(hh-b[3])/2,w,hh)}
     ctx.globalAlpha=.94*kf*kf;ctx.drawImage(s.img,b[0],b[1],b[2],b[3]);ctx.restore();return;
   }
-  var pm=fx===3?clamp(p*1.5,0,1):fx===2?clamp(p*1.2,0,1):p,stm=Math.round(pm*(MS-1));
-  if(fx===2)imgMasked(s,b,stm,[[0,0,.9*(1-e)],[-2*e,-9*e,.5*(1-e)],[3*e,-20*e,.32*(1-e)],[-3*e,-33*e,.2*(1-e)]]);
+  var pm=fx===3?clamp(p*1.5,0,1):(fx===2||fx===5)?clamp(p*1.2,0,1):p,stm=Math.round(pm*(MS-1));
+  if(fx===5){
+    ctx.save();
+    for(i=1;i>=0;i--){var k=1+e*(.03+i*.04),w=b[2]*k,hh=b[3]*(1+e*(.05+i*.06));ctx.globalAlpha=.14*kf;ctx.drawImage(s.img,b[0]-(w-b[2])/2,b[1],w,hh)} /* a little bleeding, downwards */
+    ctx.restore();
+    imgMasked(s,b,stm,[[0,0,.9*(1-e)],[2*e,9*e,.5*(1-e)],[-3*e,20*e,.34*(1-e)],[3*e,34*e,.22*(1-e)],[-2*e,48*e,.12*(1-e)]]);
+  }else if(fx===2)imgMasked(s,b,stm,[[0,0,.9*(1-e)],[-2*e,-9*e,.5*(1-e)],[3*e,-20*e,.32*(1-e)],[-3*e,-33*e,.2*(1-e)]]);
   else imgMasked(s,b,stm,[[0,0,.94*(1-.5*e)]]);
   if(fx===3)ash(s,p,"70,52,40");
 }
@@ -936,7 +941,7 @@ function demo(){
   if(demoLabs&&demoLabs.parentNode)demoLabs.parentNode.removeChild(demoLabs);
   demoLabs=document.createElement("div");demoLabs.id="demolabs";page.appendChild(demoLabs);
   for(f=0;f<FXN.length;f++){
-    y=.17+f*.16;pts=[];
+    y=.13+f*.14;pts=[];
     for(i=0;i<=44;i++){u=i/44;pts.push([.12+u*.76,y+Math.sin(u*10+f)*.03+Math.sin(u*3.3)*.018,now-(44-i)*7,clamp(6+Math.round(Math.sin(u*8)*4),0,12)])}
     s={sid:++sid,pts:pts,blots:[],w:.0042,life:life,mine:true,lt:now,fx:f};
     for(i=0;i<5;i++)s.blots.push({x:.12+Math.random()*.76,y:y+(Math.random()-.5)*.06,r:.0014+Math.random()*.003,t:now});
