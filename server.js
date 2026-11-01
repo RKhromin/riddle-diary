@@ -157,6 +157,11 @@ wss.on("connection", (ws, req) => {
     if (m.t === "ev" && m.topic === "stroke" && m.data && typeof m.data === "object") {
       if (JSON.stringify(m.data).length > 4096) return;
       broadcast(room, { t: "ev", topic: "stroke", data: m.data, peer: id }, me);
+    } else if (m.t === "ev" && m.topic === "msg" && me.admin && m.data && typeof m.data === "object") {
+      // сообщение с клавиатуры: только от администратора, нигде не хранится
+      const text = typeof m.data.t === "string" ? m.data.t.replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 200) : "";
+      if (!text.trim()) return;
+      broadcast(room, { t: "ev", topic: "msg", data: { t: text, l: clamp(Number(m.data.l) || 8, 2, 30), f: clamp(Math.round(Number(m.data.f)) || 0, 0, 9) }, peer: id }, me);
     } else if (m.t === "pr" && m.p && typeof m.p === "object") {
       const ok = (v) => v === null || (typeof v === "number" && v >= 0 && v <= 1);
       if (!ok(m.p.cx) || !ok(m.p.cy)) return;
