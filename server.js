@@ -17,6 +17,13 @@ const MAX_PEERS = 8;                 // максимум людей в одно�
 const EMPTY_ROOM_TTL = 30 * 60 * 1000; // пустую комнату помним 30 минут
 const MAX_BG = 1500000;              // фон-картинка: не больше ~1,5 МБ
 
+// Фон по умолчанию: файл default-bg.jpg лежит рядом с server.js. Если файла нет — обычная бумага.
+let DEFAULT_BG = null;
+try {
+  const data = fs.readFileSync(path.join(__dirname, "default-bg.jpg"));
+  if (data[0] === 0xff && data[1] === 0xd8) DEFAULT_BG = { data, ver: 1, lum: 0.73 };
+} catch (e) {}
+
 // Загрузка фона: только администратор (по секретному ключу), только JPEG.
 function handleBg(req, res, u) {
   const reply = (code, obj) => {
@@ -31,9 +38,10 @@ function handleBg(req, res, u) {
   if (now - room.lastBg < 2000) return reply(429, { error: "slow down" });
   room.lastBg = now;
   if (u.searchParams.get("clear") === "1") {
-    room.bg = null;
-    broadcast(room, { t: "bg", ver: 0 });
-    return reply(200, { ver: 0 });
+    room.bg = DEFAULT_BG; // «сбросить» возвращает фон по умолчанию
+    const v = DEFAULT_BG ? { ver: DEFAULT_BG.ver, lum: DEFAULT_BG.lum } : { ver: 0 };
+    broadcast(room, Object.assign({ t: "bg" }, v));
+    return reply(200, v);
   }
   const chunks = [];
   let size = 0, dead = false;
@@ -159,7 +167,7 @@ wss.on("connection", (ws, req) => {
 
   let room = rooms.get(name);
   if (!room) {
-    room = { peers: new Map(), adminKey: "", cfg: { life: 4, title: "Напишите что-нибудь...", fx: 0 }, bg: null, lastBg: 0, timer: null };
+    room = { peers: new Map(), adminKey: "", cfg: { life: 4, title: "Напишите что-нибудь...", fx: 0 }, bg: DEFAULT_BG, lastBg: 0, timer: null };
     rooms.set(name, room);
   }
   clearTimeout(room.timer);

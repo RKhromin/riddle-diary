@@ -64,7 +64,7 @@ select option{background:#1a1411;color:#d8c8a8}
 <div id="bar">
   <span id="status">Страница пуста…</span>
   <label class="life">Чернила впитаются через <b id="lv">4</b> с <input id="life" type="range" min="2" max="30" value="4"></label>
-  <input id="ttl" maxlength="60" placeholder="Заголовок страницы…" autocomplete="off" aria-label="Заголовок"><button id="bgbtn">Фон…</button><button id="bgclr">Бумага</button><label class="life">Исчезновение <select id="fxsel"></select></label><button id="fxdemo">Сравнить все</button><input type="file" id="bgfile" accept="image/*" hidden><button id="snd">Звук: вкл</button><button id="copy">Скопировать ссылку</button>
+  <input id="ttl" maxlength="60" placeholder="Заголовок страницы…" autocomplete="off" aria-label="Заголовок"><button id="bgbtn">Фон…</button><button id="bgclr">Сбросить фон</button><label class="life">Исчезновение <select id="fxsel"></select></label><button id="fxdemo">Сравнить все</button><input type="file" id="bgfile" accept="image/*" hidden><button id="snd">Звук: вкл</button><button id="copy">Скопировать ссылку</button>
   <div class="msgrow"><textarea id="msg" rows="2" maxlength="500" placeholder="Сообщение на страницу (Enter — новая строка)…" autocomplete="off" aria-label="Сообщение"></textarea><button id="msgbtn">Показать</button><button id="imgbtn">Картинка…</button><input type="file" id="imgfile" accept="image/png,image/*" hidden></div>
 </div>
 <script>
@@ -919,7 +919,7 @@ $("bgclr").addEventListener("click",async function(){
   if(!isAdmin)return;
   try{
     var resp=await fetch("/bg?room="+encodeURIComponent(roomName)+"&clear=1",{method:"POST",headers:{"X-Admin-Key":curKey}});
-    if(resp.ok){applyBg(null);setStatus("Снова обычная бумага.")}
+    if(resp.ok){var j=await resp.json();applyBg(j);setStatus("Фон по умолчанию.")}
     else if(resp.status===429)setStatus("Подожди пару секунд и попробуй ещё раз.");
   }catch(e){}
 });
