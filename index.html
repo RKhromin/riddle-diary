@@ -2,15 +2,15 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Дневник</title>
 <link href="https://fonts.googleapis.com/css2?family=Marck+Script&family=Cormorant+Garamond:ital,wght@0,500;1,500&display=swap" rel="stylesheet">
 <style>
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
---desk:#120e0c;--desk2:#221913;--ui:#b9a98c;--ui-dim:#7d705c;color-scheme:dark}
+--desk:#120e0c;--desk2:#221913;--ui:#b9a98c;--ui-dim:#7d705c;--noise:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .22 0 0 0 0 .08 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");color-scheme:dark}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--desk:#0a0807;--desk2:#1a1411;--ui:#b9a98c;--ui-dim:#7d705c}}
 :root[data-theme="dark"]{--desk:#0a0807;--desk2:#1a1411;--ui:#b9a98c;--ui-dim:#7d705c}
-html,body{height:100%;margin:0}
+html,body{height:100%;margin:0;touch-action:none;overscroll-behavior:none;-webkit-touch-callout:none}
 body{background:radial-gradient(ellipse at 50% 40%,var(--desk2),var(--desk) 75%);background-color:var(--desk);
 display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;overflow:hidden;
 font-family:"Cormorant Garamond",Georgia,"Times New Roman",serif;color:var(--ui);-webkit-user-select:none;user-select:none}
@@ -19,11 +19,18 @@ background:
 radial-gradient(ellipse at 50% 50%,rgba(0,0,0,0) 52%,rgba(92,58,22,.5) 100%),
 radial-gradient(circle at 16% 11%,rgba(120,80,30,.2),transparent 30%),
 radial-gradient(circle at 84% 90%,rgba(110,70,25,.22),transparent 36%),
-url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .22 0 0 0 0 .08 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+var(--noise),
 linear-gradient(#ead9b1,#dcc596);
 box-shadow:0 0 0 1px rgba(0,0,0,.7),0 30px 80px rgba(0,0,0,.85),inset 0 0 70px rgba(70,40,10,.55)}
 #page::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(0,0,0,.38),transparent 7%)}
 #cv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+#bgimg,#fx{position:absolute;inset:0;pointer-events:none}
+#bgimg{background-size:cover;background-position:center;opacity:0;transition:opacity .9s}
+#fx{display:none;background:linear-gradient(90deg,rgba(0,0,0,.4),transparent 7%),radial-gradient(ellipse at 50% 50%,rgba(0,0,0,0) 55%,rgba(30,18,6,.55) 100%),var(--noise)}
+#page.has-bg #bgimg{opacity:1}
+#page.has-bg #fx{display:block}
+.lightink #title{color:rgba(244,238,226,.94);text-shadow:0 1px 8px rgba(0,0,0,.55)}
+.lightink #hint{color:rgba(240,232,220,.9)}
 #title{position:absolute;top:3%;left:6%;right:6%;text-align:center;font-family:"Marck Script","Segoe Script",cursive;font-size:clamp(22px,5vw,32px);line-height:1.15;color:rgba(30,20,38,.86);pointer-events:none;overflow-wrap:anywhere}
 #hint{position:absolute;left:0;right:0;top:44%;text-align:center;font-family:"Marck Script","Segoe Script",cursive;font-size:clamp(26px,6vw,40px);
 color:rgba(32,20,36,.8);pointer-events:none;opacity:0;animation:inkhint 8s ease-in-out 1s forwards}
@@ -41,14 +48,14 @@ button:hover{border-color:var(--ui)}
 </head>
 <body>
 <div id="page">
-  <canvas id="cv"></canvas>
+  <div id="bgimg"></div><div id="fx"></div><canvas id="cv"></canvas>
   <div id="title"></div>
   <div id="hint">Напиши что-нибудь…</div>
 </div>
 <div id="bar">
   <span id="status">Страница пуста…</span>
   <label class="life">Чернила впитаются через <b id="lv">8</b> с <input id="life" type="range" min="2" max="30" value="8"></label>
-  <input id="ttl" maxlength="60" placeholder="Заголовок страницы…" autocomplete="off" aria-label="Заголовок"><button id="copy">Скопировать ссылку</button>
+  <input id="ttl" maxlength="60" placeholder="Заголовок страницы…" autocomplete="off" aria-label="Заголовок"><button id="bgbtn">Фон…</button><button id="bgclr">Бумага</button><input type="file" id="bgfile" accept="image/*" hidden><button id="copy">Скопировать ссылку</button>
 </div>
 <script>
 (function(){
@@ -60,13 +67,16 @@ var oc=document.createElement("canvas"),octx=oc.getContext("2d");
 var W=300,H=400,dpr=1,idle=false,isAdmin=false,adminPeer=null;
 var strokes=[],remote=new Map(),cfg={life:8,title:""},maskPats=[];
 var clamp=function(v,a,b){return Math.max(a,Math.min(b,v))};
-var wf=function(c){return .6+c*.19};
+var wf=function(c){return .6+c*.095}; /* c = 0..12 */
 var ease=function(f){return f*f*(3-2*f)};
+var light=false,bgVer=0,curKey="";
+function inkBase(m){return light?(m?[238,232,220]:[244,176,156]):(m?[22,16,34]:[72,20,18])}
+function sheenBase(m){return light?(m?"255,255,255":"255,220,200"):(m?"150,140,210":"210,120,110")}
 var rgba=function(c,a){return"rgba("+c+","+a.toFixed(3)+")"};
 function rnd(seed){return function(){seed=(seed+0x6D2B79F5)|0;var t=Math.imul(seed^(seed>>>15),1|seed);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296}}
 
 function layout(){
-  var pw=Math.max(200,Math.min(innerWidth*.94,(innerHeight-(isAdmin?118:30))*.75)),ph=pw/.75;
+  var pw=Math.max(200,Math.min(innerWidth*.94,(innerHeight-(isAdmin?140:30))*.75)),ph=pw/.75;
   page.style.width=pw+"px";page.style.height=ph+"px";bar.style.width=pw+"px";
   dpr=Math.min(2,window.devicePixelRatio||1);
   cv.width=oc.width=Math.round(pw*dpr);cv.height=oc.height=Math.round(ph*dpr);
@@ -116,6 +126,16 @@ function drawBlot(g,b,col,sp,a){
   for(k=0;k<sh.length;k++){var x=cx+sh[k][0]*r,y=cy+sh[k][1]*r,rr=sh[k][2]*r;g.moveTo(x+rr,y);g.arc(x,y,rr,0,6.283)}
   g.fill();
 }
+function qpath(g,P,i,j){ /* smooth curve: each point is a control point, pieces meet at midpoints */
+  var n=P.length,sx,sy,k;
+  if(i===0){sx=P[0][0]*W;sy=P[0][1]*H}else{sx=(P[i-1][0]+P[i][0])*.5*W;sy=(P[i-1][1]+P[i][1])*.5*H}
+  g.beginPath();g.moveTo(sx,sy);
+  for(k=i;k<=j;k++){
+    var ex,ey;
+    if(k===n-1){ex=P[k][0]*W;ey=P[k][1]*H}else{ex=(P[k][0]+P[k+1][0])*.5*W;ey=(P[k][1]+P[k+1][1])*.5*H}
+    g.quadraticCurveTo(P[k][0]*W,P[k][1]*H,ex,ey);
+  }
+}
 function drawInk(g,s,col,wm,a,hk,hw){
   var P=s.pts,n=P.length,i=0,k;
   g.lineCap="round";g.lineJoin="round";
@@ -124,9 +144,8 @@ function drawInk(g,s,col,wm,a,hk,hw){
   }else while(i<n){
     var c=P[i][3],j=i;
     while(j+1<n&&P[j+1][3]===c)j++;
-    var w=s.w*W*wf(c)*wm,st=Math.max(i-1,0);
-    g.beginPath();g.moveTo(P[st][0]*W,P[st][1]*H);
-    for(k=(st===i?i+1:i);k<=j;k++)g.lineTo(P[k][0]*W,P[k][1]*H);
+    var w=s.w*W*wf(c)*wm;
+    qpath(g,P,i,j);
     g.strokeStyle=rgba(col,a*hk);g.lineWidth=w*hw;g.stroke();
     g.strokeStyle=rgba(col,a);g.lineWidth=w;g.stroke();
     i=j+1;
@@ -139,13 +158,12 @@ function lastT(s){
   return m;
 }
 function drawSolid(s,t){
-  var col=s.mine?"22,16,34":"72,20,18",P=s.pts,n=P.length,k;
+  var col=inkBase(s.mine).join(","),P=s.pts,n=P.length,k;
   drawInk(ctx,s,col,1,.94,.1,1.7);
   var m=n-1;while(m>0&&t-P[m-1][2]<550)m--;
   if(n-m>=2&&t-P[n-1][2]<550){ /* wet sheen */
-    ctx.beginPath();ctx.moveTo(P[m][0]*W,P[m][1]*H);
-    for(k=m+1;k<n;k++)ctx.lineTo(P[k][0]*W,P[k][1]*H);
-    ctx.strokeStyle=(s.mine?"rgba(150,140,210,":"rgba(210,120,110,")+(.3*(1-(t-P[m][2])/550)).toFixed(3)+")";
+    qpath(ctx,P,m,n-1);
+    ctx.strokeStyle=("rgba("+sheenBase(s.mine)+",")+(.3*(1-(t-P[m][2])/550)).toFixed(3)+")";
     ctx.lineWidth=s.w*W*.3;ctx.stroke();
   }
 }
@@ -157,7 +175,7 @@ function drawDissolve(s,p){
   var rx=Math.max(0,Math.floor((x0-mg)*dpr)),ry=Math.max(0,Math.floor((y0-mg)*dpr)),
       rw=Math.min(oc.width,Math.ceil((x1+mg)*dpr))-rx,rh=Math.min(oc.height,Math.ceil((y1+mg)*dpr))-ry;
   if(rw<=0||rh<=0)return;
-  var base=s.mine?[22,16,34]:[72,20,18],tg=[118,86,60],f=e*.65;
+  var base=inkBase(s.mine),tg=light?[120,110,100]:[118,86,60],f=e*.65;
   var col=Math.round(base[0]+(tg[0]-base[0])*f)+","+Math.round(base[1]+(tg[1]-base[1])*f)+","+Math.round(base[2]+(tg[2]-base[2])*f);
   octx.setTransform(1,0,0,1,0,0);octx.globalCompositeOperation="source-over";octx.globalAlpha=1;
   octx.clearRect(rx,ry,rw,rh);
@@ -188,14 +206,15 @@ function frame(){
   }
   cursors.forEach(function(p){
     var x=p.presence.cx*W,y=p.presence.cy*H,g=ctx.createRadialGradient(x,y,0,x,y,9);
-    g.addColorStop(0,"rgba(72,20,18,.45)");g.addColorStop(1,"rgba(72,20,18,0)");
+    var cc=inkBase(false).join(",");g.addColorStop(0,"rgba("+cc+",.5)");g.addColorStop(1,"rgba("+cc+",0)");
     ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,9,0,6.283);ctx.fill();
   });
 }
 requestAnimationFrame(frame);
 
-/* ---------- my drawing ---------- */
-var cur=null,buf=[],bq=[],sid=0,flushT=null,lastX=0,lastY=0,pauseIdx=-1,pauseStart=0;
+/* ---------- my drawing: stylus first, palm rejection ---------- */
+var cur=null,curId=-1,curType="",buf=[],bq=[],sid=0,flushT=null,lastX=0,lastY=0,pauseIdx=-1,pauseStart=0;
+var penSeen=false;try{penSeen=localStorage.getItem("rd-pen")==="1"}catch(e){}
 function pos(e){var r=cv.getBoundingClientRect();return[clamp((e.clientX-r.left)/r.width,0,1),clamp((e.clientY-r.top)/r.height,0,1)]}
 function addBlot(x,y,r,t){cur.blots.push({x:x,y:y,r:r,t:t});bq.push(cur.blots.length-1);return cur.blots.length-1}
 function drops(x,y,ax,ay,n,spread,fast,now){
@@ -208,7 +227,7 @@ function drops(x,y,ax,ay,n,spread,fast,now){
   }
 }
 function mk(x,y,c,now,w,vs){
-  return{sid:++sid,pts:[[x,y,now,c]],blots:[],w:w,life:cfg.life*1000,mine:true,lt:now,vs:vs,t0:now};
+  return{sid:++sid,pts:[[x,y,now,c]],blots:[],w:w,life:cfg.life*1000,mine:true,lt:now,vs:vs,t0:now,pr:.5};
 }
 function send(end){
   if(!cur)return;
@@ -234,36 +253,55 @@ function tick(){
   }else pauseIdx=-1;
   send(false);
 }
+/* As soon as a stylus is seen (even hovering), fingers and palms stop drawing — also next time. */
+["pointerover","pointerenter","pointermove","pointerdown"].forEach(function(n){
+  addEventListener(n,function(e){
+    if(e.pointerType==="pen"&&!penSeen){penSeen=true;try{localStorage.setItem("rd-pen","1")}catch(x){}}
+  },true);
+});
+function rejected(e){return e.pointerType==="touch"&&(penSeen||e.width>48||e.height>48)}
+function abortStroke(){ /* a palm began a stroke and then the pen arrived: throw the palm's stroke away */
+  if(!cur)return;
+  clearInterval(flushT);
+  var ix=strokes.indexOf(cur);if(ix>-1)strokes.splice(ix,1);
+  cur=null;curId=-1;buf=[];bq=[];
+}
 cv.addEventListener("pointerdown",function(e){
-  e.preventDefault();cv.setPointerCapture(e.pointerId);$("hint").classList.add("gone");
+  e.preventDefault();
+  if(rejected(e))return;
+  if(cur){if(e.pointerType==="pen"&&curType!=="pen")abortStroke();else return}
+  try{cv.setPointerCapture(e.pointerId)}catch(x){}
+  $("hint").classList.add("gone");
   var q=pos(e),now=performance.now();lastX=q[0];lastY=q[1];
-  var w=e.pointerType==="pen"?.0025+e.pressure*.0035:.0042;
-  cur=mk(q[0],q[1],3,now,w,.5);strokes.push(cur);
-  buf=[[q[0],q[1],3]];bq=[];pauseIdx=-1;
-  addBlot(q[0],q[1],w*(.7+Math.random()*.5),now); /* the pen touches the page */
+  cur=mk(q[0],q[1],6,now,.0042,.5);curId=e.pointerId;curType=e.pointerType;
+  strokes.push(cur);
+  buf=[[q[0],q[1],6]];bq=[];pauseIdx=-1;
+  addBlot(q[0],q[1],cur.w*(.7+Math.random()*.5),now); /* the pen touches the page */
   if(Math.random()<.7)drops(q[0],q[1],0,0,1+Math.floor(Math.random()*3),12,false,now);
   clearInterval(flushT);flushT=setInterval(tick,70);
 });
 cv.addEventListener("pointermove",function(e){
+  if(rejected(e))return;
   var q=pos(e);
-  if(rm){try{rm.presence({cx:Math.round(q[0]*1e3)/1e3,cy:Math.round(q[1]*1e3)/1e3}).catch(function(){})}catch(x){}}
-  if(!cur)return;
+  if(rm&&(!cur||e.pointerId===curId)){try{rm.presence({cx:Math.round(q[0]*1e3)/1e3,cy:Math.round(q[1]*1e3)/1e3}).catch(function(){})}catch(x){}}
+  if(!cur||e.pointerId!==curId)return;
   var evs=e.getCoalescedEvents?e.getCoalescedEvents():[e];
   if(!evs.length)evs=[e];
   evs.forEach(function(ev){
     var r=pos(ev),now=performance.now();
-    lastX+=(r[0]-lastX)*.65;lastY+=(r[1]-lastY)*.65;
+    lastX+=(r[0]-lastX)*.7;lastY+=(r[1]-lastY)*.7;
     var pl=cur.pts[cur.pts.length-1],dx=(lastX-pl[0])*W,dy=(lastY-pl[1])*H,dist=Math.hypot(dx,dy);
-    if(dist<1.2)return;
-    var v=dist/Math.max(4,now-cur.lt);
+    if(dist<1.6)return;
+    var v=dist/Math.max(4,now-cur.lt),pf=1;
     cur.vs+=(v-cur.vs)*.2;cur.lt=now;pauseIdx=-1;
-    var c=clamp(Math.round((clamp(1.8-cur.vs*.9,.6,1.74)-.6)/1.14*6),0,6);
+    if(curType==="pen"&&ev.pressure>0){cur.pr+=(ev.pressure-cur.pr)*.3;pf=.55+cur.pr*.9} /* real pen pressure */
+    var f=clamp((1.8-cur.vs*.9)*pf,.6,1.74),c=clamp(Math.round((f-.6)/1.14*12),0,12);
     cur.pts.push([lastX,lastY,now,c]);buf.push([lastX,lastY,c]);
     var fast=cur.vs>.7;
     if(Math.random()<(fast?.07:.025))drops(lastX,lastY,dx/dist,dy/dist,fast?1+Math.floor(Math.random()*3):1,fast?28:9,fast,now);
     if(now-cur.t0>2800){ /* long strokes are cut so each piece sinks in as one */
-      send(true);var vs=cur.vs;
-      cur=mk(lastX,lastY,c,now,cur.w,vs);strokes.push(cur);buf=[[lastX,lastY,c]];bq=[];
+      send(true);var vs=cur.vs,pr=cur.pr;
+      cur=mk(lastX,lastY,c,now,cur.w,vs);cur.pr=pr;strokes.push(cur);buf=[[lastX,lastY,c]];bq=[];
     }
   });
 });
@@ -274,10 +312,14 @@ function up(){
     var a=cur.pts[n-2],b=cur.pts[n-1],dx=(b[0]-a[0])*W,dy=(b[1]-a[1])*H,dl=Math.hypot(dx,dy)||1;
     drops(b[0],b[1],dx/dl,dy/dl,2+Math.floor(Math.random()*4),34,true,performance.now());
   }
-  send(true);clearInterval(flushT);cur=null;
+  send(true);clearInterval(flushT);cur=null;curId=-1;
 }
-cv.addEventListener("pointerup",up);cv.addEventListener("pointercancel",up);
-cv.addEventListener("pointerleave",function(){if(rm){try{rm.presence({cx:null,cy:null}).catch(function(){})}catch(e){}}});
+function end(e){if(cur&&e.pointerId===curId)up()} /* only the pointer that draws can end the stroke */
+cv.addEventListener("pointerup",end);cv.addEventListener("pointercancel",end);
+addEventListener("blur",up);
+cv.addEventListener("contextmenu",function(e){e.preventDefault()});
+document.addEventListener("gesturestart",function(e){e.preventDefault()});
+cv.addEventListener("pointerleave",function(e){if(rm&&!rejected(e)){try{rm.presence({cx:null,cy:null}).catch(function(){})}catch(x){}}});
 
 /* ---------- partner's strokes ---------- */
 function onStroke(m){
@@ -293,7 +335,7 @@ function onStroke(m){
   for(k=0;k<n;k++){
     var x=+d.p[3*k]/1e4,y=+d.p[3*k+1]/1e4,c=Math.round(+d.p[3*k+2]);
     if(!isFinite(x)||!isFinite(y))continue;
-    s.pts.push([clamp(x,0,1),clamp(y,0,1),now-(n-1-k)*8,clamp(isFinite(c)?c:3,0,6)]);
+    s.pts.push([clamp(x,0,1),clamp(y,0,1),now-(n-1-k)*8,clamp(isFinite(c)?c:6,0,12)]);
   }
   if(Array.isArray(d.b))d.b.slice(0,12).forEach(function(e){
     if(!Array.isArray(e))return;
@@ -341,7 +383,7 @@ function connectRoom(name,key,cb){
         if(o){others.set(m.peer,{peer:o.peer,isMe:false,presence:m.presence||{},updatedAt:Date.now()});rebuild()}
       }else if(m.t==="ev"){
         (lis[m.topic]||[]).slice().forEach(function(f){try{f({topic:m.topic,data:m.data,peer:m.peer,isMe:false})}catch(e){}});
-      }else if(m.t==="cfg"){cb.cfg(m)}
+      }else if(m.t==="cfg"){cb.cfg(m)}else if(m.t==="bg"){cb.bg(m)}
     };
     ws.onclose=function(e){
       clearInterval(pingT);var was=up;up=false;others.clear();
@@ -400,20 +442,63 @@ function enter(name,created){
   var my=++token;roomName=name;
   if(rm){try{rm.leave()}catch(e){}rm=null}
   isAdmin=false;bar.style.display="none";layout();
+  bgVer=-1;applyBg(null);
   setStatus("Соединяюсь…");
-  rm=connectRoom(name,keyFor(name,created),{
+  curKey=keyFor(name,created);
+  rm=connectRoom(name,curKey,{
     hello:function(m){
       if(my!==token)return;
       isAdmin=!!m.admin;bar.style.display=isAdmin?"flex":"none";layout();
       if(isAdmin)rm.sendCfg(cfg);else applyCfg(m.cfg);
+      applyBg(m.bg);
       peersMsg();
     },
     cfg:function(m){if(my===token&&!isAdmin)applyCfg(m)},
+    bg:function(m){if(my===token)applyBg(m)},
     lost:function(n){if(my===token)setStatus(n>2?"Сервер просыпается — бесплатному хостингу нужна около минуты…":"Связь потеряна, переподключаюсь…")},
     refused:function(code){if(my===token)setStatus(code===1013?"В комнате уже максимум людей.":"Неверная ссылка.")}
   });
   rm.on("stroke",onStroke);
   rm.onPeers(peersMsg);rm.onConnection(peersMsg);
+}
+/* ---------- page background picture (admin uploads, everyone sees) ---------- */
+function applyBg(b){
+  var ver=b&&b.ver?b.ver:0;
+  if(ver===bgVer)return;
+  bgVer=ver;
+  if(!ver){page.classList.remove("has-bg","lightink");light=false;$("bgimg").style.backgroundImage="";idle=false;return}
+  var url="/bg/"+encodeURIComponent(roomName)+"?v="+ver,im=new Image();
+  im.onload=function(){
+    if(bgVer!==ver)return;
+    $("bgimg").style.backgroundImage='url("'+url+'")';
+    light=(+b.lum<.45);
+    page.classList.add("has-bg");page.classList.toggle("lightink",light);idle=false;
+  };
+  im.src=url;
+}
+function toJpeg(file){
+  return new Promise(function(res,rej){
+    var img=new Image(),u=URL.createObjectURL(file);
+    img.onerror=function(){URL.revokeObjectURL(u);rej(new Error("img"))};
+    img.onload=function(){
+      URL.revokeObjectURL(u);
+      var c=document.createElement("canvas");c.width=900;c.height=1200;
+      var g=c.getContext("2d"),s=Math.max(900/img.width,1200/img.height),w=img.width*s,h=img.height*s;
+      g.fillStyle="#fff";g.fillRect(0,0,900,1200);
+      g.drawImage(img,(900-w)/2,(1200-h)/2,w,h);
+      var t=document.createElement("canvas");t.width=24;t.height=32;
+      var tg=t.getContext("2d");tg.drawImage(c,0,0,24,32);
+      var d=tg.getImageData(0,0,24,32).data,sum=0,i;
+      for(i=0;i<d.length;i+=4)sum+=(.2126*d[i]+.7152*d[i+1]+.0722*d[i+2])/255;
+      var lum=sum/(d.length/4);
+      (function go(q){c.toBlob(function(b){
+        if(!b)return rej(new Error("blob"));
+        if(b.size>1400000&&q>.45)return go(q-.15);
+        res({blob:b,lum:lum});
+      },"image/jpeg",q)})(.85);
+    };
+    img.src=u;
+  });
 }
 function start(){
   var c=location.hash.slice(1).toLowerCase(),created=false;
@@ -432,6 +517,28 @@ $("life").addEventListener("input",function(){cfg.life=+this.value;$("lv").textC
 $("ttl").addEventListener("input",function(){
   cfg.title=this.value.slice(0,60);setTitle(cfg.title);
   clearTimeout(ttlT);ttlT=setTimeout(function(){if(rm)rm.sendCfg(cfg)},250);
+});
+$("bgbtn").addEventListener("click",function(){$("bgfile").click()});
+$("bgfile").addEventListener("change",async function(){
+  var f=this.files&&this.files[0];this.value="";
+  if(!f||!isAdmin)return;
+  setStatus("Готовлю картинку…");
+  try{
+    var r=await toJpeg(f);
+    setStatus("Загружаю фон…");
+    var resp=await fetch("/bg?room="+encodeURIComponent(roomName)+"&lum="+r.lum.toFixed(3),{method:"POST",headers:{"X-Admin-Key":curKey,"Content-Type":"image/jpeg"},body:r.blob});
+    if(resp.status===429){setStatus("Подожди пару секунд и попробуй ещё раз.");return}
+    if(!resp.ok)throw new Error("http");
+    var j=await resp.json();applyBg({ver:j.ver,lum:j.lum});setStatus("Фон обновлён.");
+  }catch(e){setStatus("Не удалось загрузить картинку. Попробуй другой файл (JPG или PNG).")}
+});
+$("bgclr").addEventListener("click",async function(){
+  if(!isAdmin)return;
+  try{
+    var resp=await fetch("/bg?room="+encodeURIComponent(roomName)+"&clear=1",{method:"POST",headers:{"X-Admin-Key":curKey}});
+    if(resp.ok){applyBg(null);setStatus("Снова обычная бумага.")}
+    else if(resp.status===429)setStatus("Подожди пару секунд и попробуй ещё раз.");
+  }catch(e){}
 });
 start();
 })();

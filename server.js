@@ -15,9 +15,64 @@ const PORT = process.env.PORT || 3000;
 const INDEX = path.join(__dirname, "index.html");
 const MAX_PEERS = 8;                 // максимум людей в одной комнате
 const EMPTY_ROOM_TTL = 30 * 60 * 1000; // пустую комнату помним 30 минут
+const MAX_BG = 1500000;              // фон-картинка: не больше ~1,5 МБ
+
+// Загрузка фона: только администратор (по секретному ключу), только JPEG.
+function handleBg(req, res, u) {
+  const reply = (code, obj) => {
+    res.writeHead(code, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(obj));
+  };
+  const name = (u.searchParams.get("room") || "").toLowerCase();
+  const key = String(req.headers["x-admin-key"] || "").slice(0, 64);
+  const room = rooms.get(name);
+  if (!room || !room.adminKey || key !== room.adminKey) return reply(403, { error: "forbidden" });
+  const now = Date.now();
+  if (now - room.lastBg < 2000) return reply(429, { error: "slow down" });
+  room.lastBg = now;
+  if (u.searchParams.get("clear") === "1") {
+    room.bg = null;
+    broadcast(room, { t: "bg", ver: 0 });
+    return reply(200, { ver: 0 });
+  }
+  const chunks = [];
+  let size = 0, dead = false;
+  req.on("data", (c) => {
+    if (dead) return;
+    size += c.length;
+    if (size > MAX_BG) { dead = true; return reply(413, { error: "too large" }); }
+    chunks.push(c);
+  });
+  req.on("end", () => {
+    if (dead) return;
+    const buf = Buffer.concat(chunks);
+    if (buf.length < 4 || buf[0] !== 0xff || buf[1] !== 0xd8 || buf[2] !== 0xff) return reply(415, { error: "jpeg only" });
+    const lum = clamp(parseFloat(u.searchParams.get("lum")) || 0.7, 0, 1);
+    room.bg = { data: buf, ver: now, lum };
+    broadcast(room, { t: "bg", ver: now, lum });
+    reply(200, { ver: now, lum });
+  });
+}
 
 const server = http.createServer((req, res) => {
   const url = (req.url || "/").split("?")[0];
+  if (req.method === "POST" && url === "/bg") {
+    let u;
+    try { u = new URL(req.url, "http://localhost"); } catch (e) { res.writeHead(400); return res.end(); }
+    return handleBg(req, res, u);
+  }
+  if (req.method === "GET" && url.startsWith("/bg/")) {
+    let name = "";
+    try { name = decodeURIComponent(url.slice(4)).toLowerCase(); } catch (e) {}
+    const room = rooms.get(name);
+    if (!room || !room.bg) { res.writeHead(404); return res.end(); }
+    res.writeHead(200, {
+      "Content-Type": "image/jpeg",
+      "Cache-Control": "public, max-age=86400",
+      "X-Content-Type-Options": "nosniff",
+    });
+    return res.end(room.bg.data);
+  }
   if (url === "/health") {
     res.writeHead(200, { "Content-Type": "text/plain" });
     return res.end("ok");
@@ -61,7 +116,7 @@ wss.on("connection", (ws, req) => {
 
   let room = rooms.get(name);
   if (!room) {
-    room = { peers: new Map(), adminKey: "", cfg: { life: 8, title: "" }, timer: null };
+    room = { peers: new Map(), adminKey: "", cfg: { life: 8, title: "" }, bg: null, lastBg: 0, timer: null };
     rooms.set(name, room);
   }
   clearTimeout(room.timer);
@@ -81,6 +136,7 @@ wss.on("connection", (ws, req) => {
     peer: id,
     admin,
     cfg: room.cfg,
+    bg: room.bg ? { ver: room.bg.ver, lum: room.bg.lum } : null,
     peers: [...room.peers.values()].map((p) => ({ peer: p.id, presence: p.presence })),
   });
   room.peers.set(id, me);
